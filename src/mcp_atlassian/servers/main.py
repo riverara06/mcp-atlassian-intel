@@ -152,12 +152,52 @@ async def main_lifespan(app: FastMCP[MainAppContext]) -> AsyncIterator[dict[str,
                 logger.info(
                     "Confluence configuration loaded and authentication is configured."
                 )
+            elif confluence_config.url:
+                # Header-auth mode: auth will be provided per-request via
+                # Authorization: Token <PAT> header. Store the URL-only stub
+                # so _get_global_config() can supply the base URL to per-request fetchers.
+                loaded_confluence_config = confluence_config
+                logger.info(
+                    "Confluence URL configured; authentication will be provided "
+                    "per-request via Authorization header (header-auth mode)."
+                )
             else:
                 logger.warning(
-                    "Confluence URL found, but authentication is not fully configured. Confluence tools will be unavailable."
+                    "Confluence URL found, but authentication is not fully configured. "
+                    "Confluence tools will be unavailable."
                 )
         except Exception as e:
             logger.error(f"Failed to load Confluence configuration: {e}", exc_info=True)
+    elif confluence_url_env := os.getenv("CONFLUENCE_URL"):
+        # CONFLUENCE_URL is set but no auth env vars are configured and
+        # CONFLUENCE_AUTH_FROM_HEADER is not set — auto-create a URL-only stub
+        # so per-request Authorization: Token <PAT> headers can be used without
+        # requiring any additional server-side configuration.
+        try:
+            from mcp_atlassian.utils.env import is_env_ssl_verify as _ssl_verify
+
+            loaded_confluence_config = ConfluenceConfig(
+                url=confluence_url_env,
+                auth_type="pat",
+                personal_token=None,
+                ssl_verify=_ssl_verify("CONFLUENCE_SSL_VERIFY"),
+                http_proxy=os.getenv("CONFLUENCE_HTTP_PROXY", os.getenv("HTTP_PROXY")),
+                https_proxy=os.getenv(
+                    "CONFLUENCE_HTTPS_PROXY", os.getenv("HTTPS_PROXY")
+                ),
+                no_proxy=os.getenv("CONFLUENCE_NO_PROXY", os.getenv("NO_PROXY")),
+                socks_proxy=os.getenv(
+                    "CONFLUENCE_SOCKS_PROXY", os.getenv("SOCKS_PROXY")
+                ),
+            )
+            logger.info(
+                "Confluence URL-only stub created for per-request header auth "
+                "(CONFLUENCE_URL is set; auth will come from Authorization header)."
+            )
+        except Exception as e:
+            logger.error(
+                f"Failed to create Confluence stub config: {e}", exc_info=True
+            )
 
     app_context = MainAppContext(
         full_jira_config=loaded_jira_config,
@@ -249,6 +289,22 @@ class AtlassianMCP(FastMCP[MainAppContext]):
                 logger.debug(
                     f"Header-based service availability: {header_based_services}"
                 )
+
+            # Also detect availability from Authorization: Token / Bearer header.
+            # This covers per-request PAT/OAuth sent via Authorization without the
+            # X-Atlassian-* service headers (e.g. MCP Inspector, standard clients).
+            per_request_token = getattr(request.state, "user_atlassian_token", None)
+            if per_request_token:
+                if not header_based_services.get("confluence") and os.getenv(
+                    "CONFLUENCE_URL"
+                ):
+                    header_based_services["confluence"] = True
+                    logger.debug(
+                        "Confluence available via per-request Authorization token"
+                    )
+                if not header_based_services.get("jira") and os.getenv("JIRA_URL"):
+                    header_based_services["jira"] = True
+                    logger.debug("Jira available via per-request Authorization token")
 
         logger.debug(
             f"_list_tools_mcp: read_only={read_only}, enabled_tools_filter={enabled_tools_filter}, header_services={header_based_services}"

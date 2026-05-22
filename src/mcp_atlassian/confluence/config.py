@@ -148,6 +148,21 @@ class ConfluenceConfig:
                 auth_type = "oauth"
             elif username and api_token:
                 auth_type = "basic"
+            elif os.getenv("CONFLUENCE_AUTH_FROM_HEADER", "").lower() in (
+                "true",
+                "1",
+                "yes",
+            ):
+                # Header-auth mode: PAT will be injected per-request via
+                # the Authorization: Token <PAT> header from the MCP client.
+                # No server-side credentials required.
+                auth_type = "pat"
+                _hdr_logger = logging.getLogger("mcp-atlassian.confluence.config")
+                _hdr_logger.info(
+                    "Confluence Server/DC configured in header-auth mode "
+                    "(CONFLUENCE_AUTH_FROM_HEADER=true). "
+                    "PAT will be provided per-request via Authorization header."
+                )
             else:
                 error_msg = (
                     "Server/Data Center authentication requires "

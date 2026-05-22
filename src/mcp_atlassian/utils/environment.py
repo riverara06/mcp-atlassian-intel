@@ -92,22 +92,30 @@ def get_available_services(
     confluence_url = os.getenv("CONFLUENCE_URL")
     confluence_is_setup = False
     if confluence_url:
-        confluence_is_setup = _check_service_auth(
-            service_name="Confluence",
-            service_url=confluence_url,
-            client_id_envs=("ATLASSIAN_OAUTH_CLIENT_ID", "CONFLUENCE_OAUTH_CLIENT_ID"),
-            client_secret_envs=(
-                "ATLASSIAN_OAUTH_CLIENT_SECRET",
-                "CONFLUENCE_OAUTH_CLIENT_SECRET",
-            ),
-            access_token_envs=(
-                "ATLASSIAN_OAUTH_ACCESS_TOKEN",
-                "CONFLUENCE_OAUTH_ACCESS_TOKEN",
-            ),
-            username_env="CONFLUENCE_USERNAME",
-            api_env="CONFLUENCE_API_TOKEN",
-            pat_env="CONFLUENCE_PERSONAL_TOKEN",
-        )
+        if os.getenv("CONFLUENCE_AUTH_FROM_HEADER", "").lower() in ("true", "1", "yes"):
+            confluence_is_setup = True
+            logger.info(
+                "Confluence configured in header-auth mode "
+                "(CONFLUENCE_AUTH_FROM_HEADER=true); "
+                "PAT will be provided per-request via Authorization header."
+            )
+        else:
+            confluence_is_setup = _check_service_auth(
+                service_name="Confluence",
+                service_url=confluence_url,
+                client_id_envs=("ATLASSIAN_OAUTH_CLIENT_ID", "CONFLUENCE_OAUTH_CLIENT_ID"),
+                client_secret_envs=(
+                    "ATLASSIAN_OAUTH_CLIENT_SECRET",
+                    "CONFLUENCE_OAUTH_CLIENT_SECRET",
+                ),
+                access_token_envs=(
+                    "ATLASSIAN_OAUTH_ACCESS_TOKEN",
+                    "CONFLUENCE_OAUTH_ACCESS_TOKEN",
+                ),
+                username_env="CONFLUENCE_USERNAME",
+                api_env="CONFLUENCE_API_TOKEN",
+                pat_env="CONFLUENCE_PERSONAL_TOKEN",
+            )
 
     if not confluence_is_setup and os.getenv("ATLASSIAN_OAUTH_ENABLE", "").lower() in (
         "true",

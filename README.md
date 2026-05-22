@@ -1,10 +1,12 @@
 # mcp-atlassian — Intel Internal Edition
 
-Fork of [sooperset/mcp-atlassian](https://github.com/sooperset/mcp-atlassian) with a patch
-for Intel's corporate proxy environment. Gives Claude Code native access to
-**wiki.ith.intel.com** — search, read, create, and update wiki pages directly from Claude.
+Fork of [ravindren-sm/mcp-atlassian-intel](https://github.com/ravindren-sm/mcp-atlassian-intel) with a patch
+for the consumption of the Confluence PAT..
 
 ## What's Different from Upstream
+
+The Confluence PAT will be obtained from the Authorization token instead of be an environment variable.
+Adding some services that will automate the process for install, uninstall, start and stop the server. 
 
 Intel's corporate proxy (`proxy-chain.intel.com:911`) intercepts outbound HTTPS. The standard
 `mcp-atlassian` server ignores the `NO_PROXY` environment variable when proxies are explicitly
