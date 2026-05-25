@@ -29,35 +29,25 @@ This fork patches `src/mcp_atlassian/utils/ssl.py` to add:
 
 ---
 
-## Step 1 — Get an Intel Confluence Personal Access Token
-
-The MCP server authenticates with a **Personal Access Token (PAT)**, not your SSO password.
-PATs are long-lived API keys that survive SSO session expiry.
-
-1. Log into **[https://wiki.ith.intel.com](https://wiki.ith.intel.com)**
-2. Click your **profile picture** (top-right corner)
-3. Select **Profile** from the dropdown
-4. Click **Settings**
-5. Click **Personal Access Tokens** (left sidebar)
-6. Click the **Create Token** button
-7. Give it a descriptive name, e.g. `GitHub Copilot MCP`
-8. Leave the expiry as-is (or set one if required by your org policy)
-9. Click **Create** and **copy the token immediately** — it will not be shown again
-
-> Keep this token private. Do not commit it to any file or repository.
-
----
-
 ## Let Copilot Do the Rest
 
-Once you have your PAT, paste the following prompt into GitHub Copilot (VS Code) and it will complete Steps 2–5 for you:
+Use **GitHub Copilot agent mode** to complete Steps 2–5 automatically.
+
+> **How to open agent mode**: In VS Code press `Ctrl+Shift+I` (or click the Copilot icon in the Activity Bar), then select **Agent** from the mode dropdown at the top of the chat panel.
+
+Paste the prompt below into the agent chat and press Enter. Copilot will run each command in the terminal and create the required files — approve each step when prompted.
 
 ```
-Set up the mcp-atlassian-intel server on my machine.
+Set up the mcp-atlassian-intel server on my Windows machine. Do the following steps in order:
 
-Clone https://github.com/ravindren-sm/mcp-atlassian-intel, install it using uv (with the Intel proxy), create the startup VBScript in my home directory using the PAT below, register it as a Windows Task Scheduler job so it starts at logon using service\windows\install.ps1, start it now, and register it with GitHub Copilot in VS Code.
-
-My Confluence PAT: <paste your token here>
+1. Install uv with: pip install uv --proxy="http://proxy-chain.intel.com:911"
+2. Configure git proxy: git config --global http.proxy http://proxy-chain.intel.com:911
+3. Clone https://github.com/ravindren-sm/mcp-atlassian-intel and cd into it
+4. Install the package with: uv tool install --from . mcp-atlassian
+5. Find the exe path with: where mcp-atlassian
+6. Create C:\Users\<my-username>\start-atlassian-mcp.vbs with CONFLUENCE_URL=https://wiki.ith.intel.com, CONFLUENCE_SSL_VERIFY=false, NO_PROXY=wiki.ith.intel.com, launching the exe with --transport streamable-http --port 9002
+7. From the repo directory, run: Set-ExecutionPolicy -Scope CurrentUser RemoteSigned (if needed), then cd service\windows and run .\install.ps1, .\start.ps1, .\status.ps1
+8. Add the MCP server to VS Code User Settings (settings.json) under the "mcp.servers" key with type "http" and url "http://localhost:9002/mcp"
 ```
 
 ---
@@ -100,15 +90,12 @@ where mcp-atlassian
 Create a file called **`start-atlassian-mcp.vbs`** in your home directory
 (`C:\Users\<your-username>\start-atlassian-mcp.vbs`).
 
-**Do not commit this file — it contains your PAT.**
-
 ```vbs
 Dim WshShell
 Set WshShell = CreateObject("WScript.Shell")
 
 ' Set credentials only for this process — not system-wide
 WshShell.Environment("Process")("CONFLUENCE_URL") = "https://wiki.ith.intel.com"
-WshShell.Environment("Process")("CONFLUENCE_PERSONAL_TOKEN") = "<paste-your-pat-here>"
 WshShell.Environment("Process")("CONFLUENCE_SSL_VERIFY") = "false"
 WshShell.Environment("Process")("NO_PROXY") = "wiki.ith.intel.com"
 
@@ -119,7 +106,7 @@ WshShell.Run """C:\Users\<your-username>\.local\bin\mcp-atlassian.exe""" --trans
 Set WshShell = Nothing
 ```
 
-Replace `<paste-your-pat-here>` and the exe path with your actual values from `where mcp-atlassian`.
+Replace the exe path with your actual value from `where mcp-atlassian`.
 
 ---
 
@@ -239,10 +226,6 @@ The MCP exposes these tools directly to Copilot (visible in the Chat panel under
 
 **MCP server not appearing or failing to connect in Copilot Chat**
 The server is not running. From the repo directory run `service\windows\start.ps1`, or check Task Scheduler. Then verify with `curl http://localhost:9002/healthz`.
-
-**`401 Unauthorized`**
-Your PAT has expired or is wrong. Create a new one at wiki.ith.intel.com → Profile → Settings →
-Personal Access Tokens → Create Token. Update the VBScript with the new token.
 
 **`Failed to resolve 'wiki.ith.intel.com'`**
 You are not on Intel network or VPN.
