@@ -24,7 +24,7 @@ This fork patches `src/mcp_atlassian/utils/ssl.py` to add:
 
 - **Python 3.10+** — verify with `python --version`
 - **Git** — verify with `git --version`
-- **Claude Code CLI** — install from [https://docs.anthropic.com/en/docs/claude-code/getting-started](https://docs.anthropic.com/en/docs/claude-code/getting-started), verify with `claude --version`
+- **VS Code** with the **GitHub Copilot** extension installed and active
 - Intel network or VPN access to `wiki.ith.intel.com`
 
 ---
@@ -40,7 +40,7 @@ PATs are long-lived API keys that survive SSO session expiry.
 4. Click **Settings**
 5. Click **Personal Access Tokens** (left sidebar)
 6. Click the **Create Token** button
-7. Give it a descriptive name, e.g. `Claude Code MCP`
+7. Give it a descriptive name, e.g. `GitHub Copilot MCP`
 8. Leave the expiry as-is (or set one if required by your org policy)
 9. Click **Create** and **copy the token immediately** — it will not be shown again
 
@@ -48,14 +48,14 @@ PATs are long-lived API keys that survive SSO session expiry.
 
 ---
 
-## Let Claude Code Do the Rest
+## Let Copilot Do the Rest
 
-Once you have your PAT, paste the following prompt into Claude Code and it will complete Steps 2–5 for you:
+Once you have your PAT, paste the following prompt into GitHub Copilot (VS Code) and it will complete Steps 2–5 for you:
 
 ```
-Set up the mcp-atlassian-intel server on my machine. 
+Set up the mcp-atlassian-intel server on my machine.
 
-Clone https://github.com/ravindren-sm/mcp-atlassian-intel, install it using uv (with the Intel proxy), create the startup VBScript in my home directory using the PAT below, register it as a Windows Task Scheduler job so it starts at logon, start it now, and register it with Claude Code.
+Clone https://github.com/ravindren-sm/mcp-atlassian-intel, install it using uv (with the Intel proxy), create the startup VBScript in my home directory using the PAT below, register it as a Windows Task Scheduler job so it starts at logon using service\windows\install.ps1, start it now, and register it with GitHub Copilot in VS Code.
 
 My Confluence PAT: <paste your token here>
 ```
@@ -113,8 +113,8 @@ WshShell.Environment("Process")("CONFLUENCE_SSL_VERIFY") = "false"
 WshShell.Environment("Process")("NO_PROXY") = "wiki.ith.intel.com"
 
 ' Replace the path below with the output of: where mcp-atlassian
-' Launch the server silently on port 8765 (0 = hidden window, False = don't wait)
-WshShell.Run """C:\Users\<your-username>\.local\bin\mcp-atlassian.exe"" --transport streamable-http --port 8765", 0, False
+' Launch the server silently on port 9002 (0 = hidden window, False = don't wait)
+WshShell.Run """C:\Users\<your-username>\.local\bin\mcp-atlassian.exe""" --transport streamable-http --port 9002", 0, False
 
 Set WshShell = Nothing
 ```
@@ -125,48 +125,56 @@ Replace `<paste-your-pat-here>` and the exe path with your actual values from `w
 
 ## Step 4 — Register for Auto-Start at Logon
 
-Open **PowerShell** (search "PowerShell" in the Windows Start menu) and run:
+Open **PowerShell** (search "PowerShell" in the Windows Start menu). If you get an execution policy error, run this once first:
 
 ```powershell
-$action = New-ScheduledTaskAction -Execute 'wscript.exe' -Argument "C:\Users\$env:USERNAME\start-atlassian-mcp.vbs"
-$trigger = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME
-$settings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit (New-TimeSpan -Seconds 0) -MultipleInstances IgnoreNew
-Register-ScheduledTask -TaskName 'Atlassian MCP Server' -Action $action -Trigger $trigger -Settings $settings -Force
+Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
+```
+
+Then register, start, and verify the server:
+
+```powershell
+cd service\windows
+
+# Register the VBScript as a Task Scheduler job (runs at logon, auto-restarts on failure)
+.\install.ps1
+
+# Start it immediately without logging off
+.\start.ps1
+
+# Verify it's healthy
+.\status.ps1
 ```
 
 The server will start silently in the background on every Windows logon.
 
-To start it manually without logging off:
-
-```
-wscript.exe C:\Users\<your-username>\start-atlassian-mcp.vbs
-```
-
-Health check (wait ~10 seconds after running the VBScript):
+Health check (manual):
 
 ```bash
-curl http://localhost:8765/healthz
+curl http://localhost:9002/healthz
 # Expected: {"status":"ok"}
 ```
 
 ---
 
-## Step 5 — Connect Claude Code
+## Step 5 — Connect GitHub Copilot in VS Code
 
-The server must be running (healthz returns `ok`) before running this.
+The server must be running (healthz returns `ok`) before adding it.
 
-Run once to register the server (user-scoped, applies to all projects):
+Add the following to your VS Code **User Settings** (`Ctrl+Shift+P` → "Open User Settings (JSON)"):
 
-```bash
-claude mcp add -s user --transport http atlassian-mcp http://localhost:8765/mcp
+```json
+"mcp": {
+  "servers": {
+    "atlassian-mcp": {
+      "type": "http",
+      "url": "http://localhost:9002/mcp"
+    }
+  }
+}
 ```
 
-Verify:
-
-```bash
-claude mcp list
-# Expected: atlassian-mcp: http://localhost:8765/mcp (HTTP) - ✓ Connected
-```
+Verify: Open the **Copilot Chat** panel, click the **Tools** icon (or type `@` in the chat), and confirm `atlassian-mcp` appears in the MCP servers list.
 
 ---
 
@@ -174,18 +182,9 @@ claude mcp list
 
 ## Using the Server
 
-Once the MCP server is running and connected, Claude Code has direct access to Intel Confluence
-tools in every session — no special commands needed. Just describe what you want in plain English.
-
-### Skills
-
-A dedicated Claude Code skill wraps the most common read workflow:
-
-| Skill | What it does |
-| --- | --- |
-| `/wiki-query` | Ask a question — Claude searches wiki.ith.intel.com and summarises the answer |
-
-Invoke it by typing `/wiki-query` followed by your question in the Claude Code prompt.
+Once the MCP server is running and connected, GitHub Copilot has direct access to Intel Confluence
+tools in every session — no special commands needed. Just describe what you want in plain English in
+the **Copilot Chat** panel (`Ctrl+Alt+I`).
 
 ### Example prompts
 
@@ -215,7 +214,7 @@ Update the page at https://wiki.ith.intel.com/pages/viewpage.action?pageId=12345
 
 ### Available Confluence tools
 
-The MCP exposes these tools directly to Claude (visible via `claude mcp list --verbose`):
+The MCP exposes these tools directly to Copilot (visible in the Chat panel under **Tools**):
 
 | Tool | Description |
 | --- | --- |
@@ -232,15 +231,14 @@ The MCP exposes these tools directly to Claude (visible via `claude mcp list --v
 | `confluence_get_space_page_tree` | Get a space's full page hierarchy |
 | `confluence_search_user` | Look up Intel colleagues by name |
 
-> **Read-only mode**: Set `CONFLUENCE_READ_ONLY=true` in the VBScript to prevent Claude from
+> **Read-only mode**: Set `CONFLUENCE_READ_ONLY=true` in the VBScript to prevent Copilot from
 > creating or modifying pages. Useful for sharing the server with colleagues who should only have
 > read access.
 
 ## Troubleshooting
 
-**`✗ Failed to connect` in `claude mcp list`**
-The server is not running. Run the VBScript or check Task Scheduler. Then verify with
-`curl http://localhost:8765/healthz`.
+**MCP server not appearing or failing to connect in Copilot Chat**
+The server is not running. From the repo directory run `service\windows\start.ps1`, or check Task Scheduler. Then verify with `curl http://localhost:9002/healthz`.
 
 **`401 Unauthorized`**
 Your PAT has expired or is wrong. Create a new one at wiki.ith.intel.com → Profile → Settings →
