@@ -42,7 +42,7 @@ Set up the mcp-atlassian-intel server on my Windows machine. Do the following st
 
 1. Install uv with: pip install uv --proxy="http://proxy-chain.intel.com:911"
 2. Configure git proxy: git config --global http.proxy http://proxy-chain.intel.com:911
-3. Clone https://github.com/ravindren-sm/mcp-atlassian-intel and cd into it
+3. Clone https://github.com/riverara06/mcp-atlassian-intel and cd into it
 4. Install the package with: uv tool install --from . mcp-atlassian
 5. Find the exe path with: where mcp-atlassian
 6. Create C:\Users\<my-username>\start-atlassian-mcp.vbs with CONFLUENCE_URL=https://wiki.ith.intel.com, CONFLUENCE_SSL_VERIFY=false, NO_PROXY=wiki.ith.intel.com, launching the exe with --transport streamable-http --port 9002
@@ -69,7 +69,7 @@ git config --global http.proxy http://proxy-chain.intel.com:911
 **Clone and install:**
 
 ```bash
-git clone https://github.com/ravindren-sm/mcp-atlassian-intel.git
+git clone https://github.com/riverara06/mcp-atlassian-intel.git
 cd mcp-atlassian-intel
 uv tool install --from . mcp-atlassian
 ```
